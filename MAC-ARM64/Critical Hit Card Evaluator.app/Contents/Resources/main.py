@@ -2,6 +2,7 @@ import wx
 import wx.adv
 import requests
 import re
+from datetime import datetime
 
 class eBayScraper(wx.Frame):
     def __init__(self, parent, title):
@@ -56,6 +57,9 @@ class eBayScraper(wx.Frame):
         self.english_checkbox = wx.CheckBox(panel, label="Exclude English")
         vbox.Add(self.english_checkbox, flag=wx.LEFT|wx.RIGHT|wx.TOP, border=15)
 
+        self.korean_checkbox = wx.CheckBox(panel, label="Exclude Korean")
+        vbox.Add(self.korean_checkbox, flag=wx.LEFT|wx.RIGHT|wx.TOP, border=15)
+
         self.location_instruction = wx.StaticText(panel, label="Warning, UK vendors will not payout at worldwide price due to USA market.")
         font = self.location_instruction.GetFont()
         font.SetPointSize(9)
@@ -97,6 +101,32 @@ class eBayScraper(wx.Frame):
         hbox_results_range.Add(self.results_120, flag=wx.RIGHT, border=10)
         hbox_results_range.Add(self.results_240, flag=wx.RIGHT, border=10)
         vbox.Add(hbox_results_range, flag=wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP, border=15)
+
+        self.date_instruction = wx.StaticText(panel, label="If you want to filter by sold date, please select the date range and check the checkbox.")
+        font = self.date_instruction.GetFont()
+        font.SetPointSize(9)
+        self.date_instruction.SetFont(font)
+        vbox.Add(self.date_instruction, flag=wx.LEFT|wx.RIGHT|wx.TOP, border=15)
+
+        # Add this inside your wxPython UI setup (before search button)
+        self.date_filter_checkbox = wx.CheckBox(panel, label="Filter by Sold Date")
+        vbox.Add(self.date_filter_checkbox, flag=wx.LEFT|wx.RIGHT|wx.TOP, border=15)
+
+        # Start Date Picker
+        hbox_start_date = wx.BoxSizer(wx.HORIZONTAL)
+        self.start_date_label = wx.StaticText(panel, label="Start Date:")
+        self.start_date_picker = wx.adv.DatePickerCtrl(panel, style=wx.adv.DP_DROPDOWN)
+        hbox_start_date.Add(self.start_date_label, flag=wx.RIGHT, border=10)
+        hbox_start_date.Add(self.start_date_picker, proportion=1)
+        vbox.Add(hbox_start_date, flag=wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP, border=15)
+
+        # End Date Picker
+        hbox_end_date = wx.BoxSizer(wx.HORIZONTAL)
+        self.end_date_label = wx.StaticText(panel, label="End Date:")
+        self.end_date_picker = wx.adv.DatePickerCtrl(panel, style=wx.adv.DP_DROPDOWN)
+        hbox_end_date.Add(self.end_date_label, flag=wx.RIGHT, border=10)
+        hbox_end_date.Add(self.end_date_picker, proportion=1)
+        vbox.Add(hbox_end_date, flag=wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP, border=15)
 
         self.search_btn = wx.Button(panel, label="Search")
         self.search_btn.Bind(wx.EVT_BUTTON, self.on_search)
@@ -151,8 +181,26 @@ class eBayScraper(wx.Frame):
             'excludeHolo': self.holo_checkbox.IsChecked(),
             'excludeReverseHolo': self.reverse_holo_checkbox.IsChecked(),
             'excludeEnglish': self.english_checkbox.IsChecked(),
-            'excludeJapanese': self.japanese_checkbox.IsChecked()
+            'excludeJapanese': self.japanese_checkbox.IsChecked(),
+            'excludeKorean': self.korean_checkbox.IsChecked()
         }
+
+        # Convert date input to string format YYYY-MM-DD
+        filter_by_date = self.date_filter_checkbox.IsChecked()
+        start_date = self.start_date_picker.GetValue().Format("%Y-%m-%d")
+        end_date = self.end_date_picker.GetValue().Format("%Y-%m-%d")
+
+        if filter_by_date:
+            # If filtering by date, get the user-selected date range
+            start_date = self.start_date_picker.GetValue().Format("%Y-%m-%d")
+            end_date = self.end_date_picker.GetValue().Format("%Y-%m-%d")
+            results_limit = 240  # Force 240 results when date filtering is ON
+        else:
+            # If not filtering by date, ignore date selection
+            start_date = "1900-01-01"  # Oldest possible date
+            end_date = wx.DateTime.Now().Format("%Y-%m-%d")  # Today's date
+            # Respect user-selected results limit
+            results_limit = 60 if self.results_60.GetValue() else 120 if self.results_120.GetValue() else 240
 
         data = {
             'search_term': search_term,
@@ -160,7 +208,9 @@ class eBayScraper(wx.Frame):
             'grade': grade,
             'location': location,
             'exclude_options': exclude_options,
-            'results_limit': results_limit
+            'results_limit': results_limit,
+            'start_date': start_date,
+            'end_date': end_date
         }
         response = requests.post('http://57.128.171.188:5176/search', json=data)
         if response.status_code == 200:
